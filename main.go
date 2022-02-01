@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -12,53 +13,60 @@ import (
 var (
 	source string
 	target string
+	mode   string
 	xpath  string
 	value  string
 )
 
 func main() {
-	file, err := os.Open("WinReg.vcxproj")
+	flag.StringVar(&source, "source", "", "Absolute path for source .xml file")
+	flag.StringVar(&target, "target", "", "Absolute path for target .xml file")
+	flag.StringVar(&mode, "mode", "innertext", `Mode: "innertext" is only supported. Default "innertext" mode`)
+	flag.StringVar(&xpath, "xpath", "", "XPath for manipulate the source .xml file")
+	flag.StringVar(&value, "value", "", "the updated value")
+	flag.Parse()
+
+	if len(source) < 1 {
+		log.Fatal(`"source" must be pprovided!`)
+	}
+
+	if len(target) < 1 {
+		log.Fatal(`"target" must be pprovided!`)
+	}
+
+	if mode != "innertext" {
+		log.Fatal(`"mode" must be "innertext" in this version`)
+	}
+
+	file, err := os.Open(source)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer file.Close()
 
-	// sp, err := xmlquery.CreateStreamParser(file, "Project/PropertyGroup/ConfigurationType")
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// for {
-	// 	n, err := sp.Read()
-	// 	if err != nil {
-	// 		break
-	// 	}
-
-	// 	fmt.Println(n.InnerText())
-	// 	fmt.Println(n.OutputXML(true))
-	// }
-
 	doc, err := xmlquery.Parse(file)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
-	for _, n := range xmlquery.Find(doc, "Project/PropertyGroup/ConfigurationType") {
+
+	// "Project/PropertyGroup/ConfigurationType"
+	for _, n := range xmlquery.Find(doc, xpath) {
 		switch n.Type {
 		case xmlquery.ElementNode:
 			if n.FirstChild.Type == xmlquery.TextNode {
-				n.FirstChild.Data = "Hahaha"
+				n.FirstChild.Data = value
 			}
 		}
 	}
 
-	root := xmlquery.FindOne(doc, "/")
+	root := xmlquery.FindOne(doc, "/") // root node
+	newFile, err := os.Create(target)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	sss, _ := os.Create("exported")
-
-	defer sss.Close()
-
-	w := bufio.NewWriter(sss)
-
+	defer newFile.Close()
+	w := bufio.NewWriter(newFile)
 	fmt.Fprintln(w, root.OutputXML(true))
-
 	w.Flush()
 }
